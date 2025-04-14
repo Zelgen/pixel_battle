@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пиксель Батл - Прототип</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Пиксель Батл - Прототип</h1>
+    
+    <div class="role-panel">
+        <h3>Выберите роль</h3>
+        <div class="role-selector">
+            <button class="role-btn admin" id="admin-role-btn">Администратор</button>
+            <button class="role-btn moderator" id="moderator-role-btn">Модератор</button>
+            <button class="role-btn player active" id="player-role-btn">Игрок</button>
+        </div>
+        <div class="role-info" id="role-info">
+            <p><strong>Текущая роль:</strong> <span id="current-role">Игрок</span></p>
+            <p id="role-description">Игрок может размещать пиксели на холсте с интервалом 20 секунд.</p>
+        </div>
+        
+        <div class="admin-controls" id="admin-controls">
+            <button id="reset-all-cooldowns">Сбросить все таймеры</button>
+            <button id="change-canvas-size">Изменить размер холста</button>
+            <button id="ban-user">Заблокировать пользователя</button>
+            <button id="change-cooldown">Изменить время перезарядки</button>
+            <button id="export-canvas">Экспортировать холст</button>
+        </div>
+        
+        <div class="moderator-controls" id="moderator-controls">
+            <button id="reset-user-cooldown">Сбросить таймер игрока</button>
+            <button id="revert-pixel">Отменить изменение пикселя</button>
+            <button id="lock-area">Заблокировать область</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="canvas-container">
+            <div id="pixel-canvas"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="color-picker" id="color-picker">
+                <!-- Цвета будут добавлены через JavaScript -->
+            </div>
+            
+            <div class="zoom-controls">
+                <button id="zoom-in">+</button>
+                <button id="zoom-out">-</button>
+                <button id="reset-zoom">Сбросить масштаб</button>
+            </div>
+            
+            <button id="clear-canvas">Очистить холст</button>
+            
+            <div class="info-panel">
+                <p>Выбранный цвет: <span id="selected-color-display">белый</span></p>
+                <p>Время до следующего размещения: <span class="timer" id="timer">0</span> секунд</p>
+                <div class="status-message" id="status-message"></div>
+            </div>
+            
+            <div class="action-log" id="action-log">
+                <div class="log-entry system">Система: Пиксель Батл запущен.</div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
