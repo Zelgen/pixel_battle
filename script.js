@@ -32,6 +32,8 @@ let scale = 1;
 let pixelSize = 5;
 let currentRole = 'player'; // по умолчанию - игрок
 let pixelHistory = []; // история изменений пикселей
+let currentUsername = null;
+let isAuthenticated = false;
 
 // Инициализация элементов DOM
 let canvas, colorPicker, timerDisplay, statusMessage, selectedColorDisplay, 
@@ -96,6 +98,12 @@ function createColorPicker() {
 
 // Обработчик клика по пикселю
 function handlePixelClick(e) {
+    // Проверяем, авторизован ли пользователь
+    if (!isAuthenticated) {
+        showLoginForm();
+        return;
+    }
+    
     const pixel = e.target;
     const pixelIndex = pixel.dataset.index;
     const oldColor = pixel.style.backgroundColor || 'rgb(255, 255, 255)';
@@ -110,7 +118,8 @@ function handlePixelClick(e) {
             oldColor: oldColor,
             newColor: selectedColor,
             time: new Date(),
-            role: 'admin'
+            role: 'admin',
+            username: currentUsername
         });
     } else if (currentRole === 'moderator') {
         // Модератор имеет кулдаун, но в два раза меньше чем у игрока
@@ -128,7 +137,8 @@ function handlePixelClick(e) {
             oldColor: oldColor,
             newColor: selectedColor,
             time: new Date(),
-            role: 'moderator'
+            role: 'moderator',
+            username: currentUsername
         });
         
         // Запускаем таймер перезарядки с половинным временем
@@ -149,7 +159,8 @@ function handlePixelClick(e) {
             oldColor: oldColor,
             newColor: selectedColor,
             time: new Date(),
-            role: 'player'
+            role: 'player',
+            username: currentUsername
         });
         
         // Запускаем таймер перезарядки
@@ -184,7 +195,14 @@ function startCooldown(time) {
 function addLogEntry(message, type = '') {
     const entry = document.createElement('div');
     entry.className = `log-entry ${type}`;
-    entry.textContent = `${getCurrentTime()} - ${message}`;
+    
+    // Формируем сообщение с именем пользователя
+    let formattedMessage = message;
+    if (currentUsername && message.includes('разместил')) {
+        formattedMessage = message.replace('разместил', `<b>${currentUsername}</b> разместил`);
+    }
+    
+    entry.innerHTML = `${getCurrentTime()} - ${formattedMessage}`;
     actionLog.prepend(entry);
     
     // Ограничиваем количество записей в логе
@@ -205,7 +223,6 @@ function getCurrentTime() {
 // Обновление масштаба
 function updateZoom() {
     const newPixelSize = Math.round(pixelSize * scale);
-    const newCanvasSize = (newPixelSize + 1) * CANVAS_SIZE;
     
     canvas.style.gridTemplateColumns = `repeat(${CANVAS_SIZE}, ${newPixelSize}px)`;
     canvas.style.gridTemplateRows = `repeat(${CANVAS_SIZE}, ${newPixelSize}px)`;
@@ -221,10 +238,146 @@ function updateZoom() {
     statusMessage.textContent = `Масштаб: ${scale * 100}%`;
 }
 
+// Функция проверки авторизации
+function setupAuth() {
+    // Проверяем, залогинен ли пользователь
+    const storedUsername = localStorage.getItem('pixelBattle_username');
+    
+    if (!storedUsername) {
+        // Показываем форму логина
+        showLoginForm();
+    } else {
+        // Устанавливаем текущего пользователя
+        currentUsername = storedUsername;
+        isAuthenticated = true;
+        const storedRole = localStorage.getItem('pixelBattle_role') || 'player';
+        
+        // Проверяем права на роль (admin и moderator только для определенных пользователей)
+        if ((storedRole === 'admin' && !isAdmin(storedUsername)) || 
+            (storedRole === 'moderator' && !isModerator(storedUsername))) {
+            switchRole('player');
+        } else {
+            switchRole(storedRole);
+        }
+        
+        // Добавляем инфо о пользователе в интерфейс
+        updateUserInfo();
+    }
+}
+
+// Функция показа формы входа
+function showLoginForm() {
+    // Создаем модальное окно для авторизации
+    const modal = document.createElement('div');
+    modal.className = 'auth-modal';
+    
+    const form = document.createElement('div');
+    form.className = 'auth-form';
+    form.innerHTML = `
+        <h3>Представьтесь, пожалуйста</h3>
+        <input type="text" id="username-input" placeholder="Введите ваш никнейм" />
+        <button id="login-button">Войти</button>
+    `;
+    
+    modal.appendChild(form);
+    document.body.appendChild(modal);
+    
+    // Добавляем обработчик для авторизации
+    document.getElementById('login-button').addEventListener('click', () => {
+        const username = document.getElementById('username-input').value.trim();
+        
+        if (username) {
+            currentUsername = username;
+            isAuthenticated = true;
+            localStorage.setItem('pixelBattle_username', username);
+            
+            // Проверяем, имеет ли пользователь право на админа или модератора
+            let role = 'player';
+            if (isAdmin(username)) {
+                role = 'admin';
+            } else if (isModerator(username)) {
+                role = 'moderator';
+            }
+            
+            localStorage.setItem('pixelBattle_role', role);
+            
+            // Удаляем модальное окно
+            document.body.removeChild(modal);
+            
+            // Обновляем интерфейс
+            updateUserInfo();
+            switchRole(role);
+        }
+    });
+    
+    // Фокус на поле ввода
+    setTimeout(() => {
+        document.getElementById('username-input').focus();
+    }, 100);
+    
+    // Добавляем обработчик Enter для поля ввода
+    document.getElementById('username-input').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            document.getElementById('login-button').click();
+        }
+    });
+}
+
+// Функция обновления информации о пользователе в интерфейсе
+function updateUserInfo() {
+    // Добавляем инфо о пользователе в интерфейс
+    const userInfo = document.createElement('div');
+    userInfo.className = 'user-info';
+    userInfo.innerHTML = `
+        <span>Привет, <b>${currentUsername}</b>!</span>
+        <button id="logout-button">Выйти</button>
+    `;
+    
+    const existingUserInfo = document.querySelector('.user-info');
+    if (existingUserInfo) {
+        existingUserInfo.parentNode.replaceChild(userInfo, existingUserInfo);
+    } else {
+        document.querySelector('h1').insertAdjacentElement('afterend', userInfo);
+    }
+    
+    // Добавляем обработчик для выхода
+    document.getElementById('logout-button').addEventListener('click', () => {
+        localStorage.removeItem('pixelBattle_username');
+        localStorage.removeItem('pixelBattle_role');
+        location.reload();
+    });
+}
+
+// Проверка прав администратора (в реальном приложении это будет проверка на сервере)
+function isAdmin(username) {
+    // Список администраторов (в реальном приложении этот список будет храниться на сервере)
+    const admins = ['admin', 'zelgen'];
+    return admins.includes(username.toLowerCase());
+}
+
+// Проверка прав модератора
+function isModerator(username) {
+    // Список модераторов
+    const moderators = ['moderator', 'mod'];
+    return moderators.includes(username.toLowerCase());
+}
+
 // Функции для системы ролей
 // Переключение роли
 function switchRole(role) {
+    // Проверяем права на роль
+    if (role === 'admin' && !isAdmin(currentUsername)) {
+        alert('У вас нет прав администратора');
+        return;
+    }
+    if (role === 'moderator' && !isModerator(currentUsername)) {
+        alert('У вас нет прав модератора');
+        return;
+    }
+    
+    // Если проверка прошла, переключаем роль
     currentRole = role;
+    localStorage.setItem('pixelBattle_role', role);
     currentRoleDisplay.textContent = getRoleName(role);
     updateRoleDescription(role);
     updateRoleButtons(role);
@@ -294,6 +447,8 @@ function updateControlPanels(role) {
 // Инициализация обработчиков событий
 function setupEventListeners() {
     // Обработчики кнопок ролей
+    adminRoleBtn.addEventListener('click', () => switch
+	// Обработчики кнопок ролей
     adminRoleBtn.addEventListener('click', () => switchRole('admin'));
     moderatorRoleBtn.addEventListener('click', () => switchRole('moderator'));
     playerRoleBtn.addEventListener('click', () => switchRole('player'));
@@ -320,11 +475,16 @@ function setupEventListeners() {
     
     // Обработчик клика по кнопке очистки холста
     clearCanvasButton.addEventListener('click', () => {
+        if (!isAuthenticated) {
+            showLoginForm();
+            return;
+        }
+        
         if (confirm('Вы действительно хотите очистить весь холст?')) {
             document.querySelectorAll('.pixel').forEach(pixel => {
                 pixel.style.backgroundColor = '#ffffff';
             });
-            addLogEntry('Холст очищен пользователем', currentRole);
+            addLogEntry(`Холст очищен пользователем ${currentUsername}`, currentRole);
             statusMessage.textContent = 'Холст очищен';
         }
     });
@@ -440,8 +600,8 @@ function init() {
     // Настраиваем обработчики событий
     setupEventListeners();
     
-    // Устанавливаем роль по умолчанию
-    switchRole('player');
+    // Инициализируем авторизацию
+    setupAuth();
     
     // Устанавливаем начальное сообщение
     statusMessage.textContent = 'Выберите цвет и нажмите на пиксель, чтобы раскрасить его';
